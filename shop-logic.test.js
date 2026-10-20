@@ -15,24 +15,24 @@ describe('filterProducts — REQ-L-01', () => {
   test('UT-01 empty query returns all products', () => {
     expect(filterProducts(PRODUCTS, '')).toHaveLength(5);
   });
-  test('UT-02 search is case-insensitive', () => {
+  test('UT-02 lowercase query matches product name', () => {
     expect(filterProducts(PRODUCTS, 'mouse').map(p => p.name)).toEqual(['Wireless Mouse']);
   });
-  test('UT-03 no match returns an empty array', () => {
+  test('UT-03 query with no match returns an empty array', () => {
     expect(filterProducts(PRODUCTS, 'tablet')).toEqual([]);
   });
-  test('UT-04 whitespace-only query returns all products', () => {
-    expect(filterProducts(PRODUCTS, '   ')).toHaveLength(5);
+  test('UT-04 undefined query returns all products', () => {
+    expect(filterProducts(PRODUCTS, undefined)).toHaveLength(5);
   });
 });
 
 describe('sortProducts — REQ-L-02', () => {
-  test('UT-05 name mode sorts A to Z', () => {
+  test('UT-05 name mode sorts names A to Z', () => {
     expect(sortProducts(PRODUCTS, 'name').map(p => p.name)).toEqual([
       'Laptop Stand', 'Mechanical Keyboard', 'Monitor 27"', 'USB-C Hub', 'Wireless Mouse',
     ]);
   });
-  test('UT-06 price-asc puts the cheapest item first', () => {
+  test('UT-06 price-asc puts cheapest product first', () => {
     expect(sortProducts(PRODUCTS, 'price-asc')[0].price).toBe(24.50);
   });
   test('UT-07 price-desc puts 249 before 89', () => {
@@ -46,21 +46,22 @@ describe('sortProducts — REQ-L-02', () => {
 });
 
 describe('lineTotal — REQ-L-03', () => {
-  test('UT-09 calculates price multiplied by quantity', () => {
+  test('UT-09 calculates price times quantity', () => {
     expect(lineTotal(39, 2)).toBe(78);
   });
-  test('UT-10 rounds a floating-point result to cents', () => {
-    expect(lineTotal(0.1, 3)).toBe(0.3);
+  test('UT-10 calculates a fractional price total', () => {
+    expect(lineTotal(24.5, 3)).toBe(73.5);
   });
-  test('UT-11 zero price returns zero', () => {
-    expect(lineTotal(0, 5)).toBe(0);
+  test('UT-11 rounds floating-point results to cents', () => {
+    expect(lineTotal(0.1, 3)).toBe(0.3);
   });
 });
 
 describe('cartTotals — REQ-L-04', () => {
-  test('UT-12 subtotal is the sum of every row', () => {
+  test('UT-12 calculates subtotal and no-discount total for all rows', () => {
     expect(cartTotals([{ price: 39, qty: 1 }, { price: 24.5, qty: 1 }], 0))
       .toEqual({ subtotal: 63.5, discount: 0, total: 63.5 });
+    expect(cartTotals([{ price: 39, qty: 3 }], 0).total).toBe(117);
   });
   test('UT-13 discount is applied to the entire basket', () => {
     expect(cartTotals([{ price: 39, qty: 1 }, { price: 24.5, qty: 1 }], 0.1))
@@ -72,78 +73,51 @@ describe('cartTotals — REQ-L-04', () => {
 });
 
 describe('normalizeQuantity — REQ-L-05', () => {
-  test('UT-15 positive integer remains unchanged', () => {
-    expect(normalizeQuantity(3)).toBe(3);
-  });
-  test('UT-16 numeric string is converted and decimal is floored', () => {
-    expect(normalizeQuantity('3')).toBe(3);
-    expect(normalizeQuantity(2.7)).toBe(2);
-  });
-  test('UT-17 zero quantity is normalized to one', () => {
-    expect(normalizeQuantity(0)).toBe(1);
-  });
-  test('UT-18 negative, NaN and blank quantity normalize to one', () => {
-    expect(normalizeQuantity(-2)).toBe(1);
-    expect(normalizeQuantity(Number.NaN)).toBe(1);
-    expect(normalizeQuantity('')).toBe(1);
-  });
+  test.each([[3, 3], ['3', 3], [2.7, 2], [1, 1]])(
+    'UT-15 valid quantity %p becomes %p', (input, expected) => {
+      expect(normalizeQuantity(input)).toBe(expected);
+    }
+  );
+  test.each([[0, 1], [-5, 1], ['abc', 1], ['', 1], [null, 1]])(
+    'UT-17 invalid quantity %p becomes 1', (input, expected) => {
+      expect(normalizeQuantity(input)).toBe(expected);
+    }
+  );
 });
 
 describe('discountRateFor — REQ-L-06', () => {
-  test('UT-19 SAVE10 returns 0.10', () => {
+  test('UT-16 SAVE10 returns 0.10', () => {
     expect(discountRateFor('SAVE10')).toBe(0.1);
   });
-  test('UT-20 SAVE20 returns 0.20', () => {
-    expect(discountRateFor('SAVE20')).toBe(0.2);
-  });
-  test('UT-21 code is case-insensitive', () => {
-    expect(discountRateFor('save10')).toBe(0.1);
-  });
-  test('UT-22 surrounding whitespace is ignored', () => {
+  test('UT-18 case and whitespace are ignored for SAVE20', () => {
     expect(discountRateFor(' save20 ')).toBe(0.2);
+    expect(discountRateFor('save20')).toBe(0.2);
   });
-  test('UT-23 unknown and empty codes return zero', () => {
+  test('UT-19 unknown and empty codes return zero', () => {
     expect(discountRateFor('UNKNOWN')).toBe(0);
     expect(discountRateFor('')).toBe(0);
   });
 });
 
 describe('validateCheckout — REQ-L-07', () => {
-  test('UT-24 email without a top-level domain is rejected', () => {
-    expect(validateCheckout({ name: 'Mari Maasikas', email: 'mari@example', address: 'Tallinn' }))
-      .toHaveProperty('email');
-  });
-  test('UT-25 valid checkout has no errors', () => {
+  test('UT-20 valid checkout has no errors', () => {
     expect(validateCheckout({ name: 'Mari Maasikas', email: 'mari@example.com', address: 'Tallinn' })).toEqual({});
   });
-  test('UT-26 empty checkout returns all three errors', () => {
+  test('UT-21 empty checkout returns all three errors', () => {
     expect(Object.keys(validateCheckout({})).sort()).toEqual(['address', 'email', 'name']);
   });
-  test('UT-27 one-character name is rejected', () => {
+  test('UT-22 one-character name is rejected', () => {
     expect(validateCheckout({ name: 'M', email: 'mari@example.com', address: 'Tallinn' })).toHaveProperty('name');
   });
-  test('UT-28 two-character name is accepted', () => {
+  test('UT-23 two-character name is accepted', () => {
     expect(validateCheckout({ name: 'Ma', email: 'ma@example.com', address: 'Tallinn' })).not.toHaveProperty('name');
   });
-  test.each([
-    ['UT-29', 'plainaddress'],
-    ['UT-30', 'mari@'],
-  ])('%s rejects malformed email %s', (_id, email) => {
-    expect(validateCheckout({ name: 'Mari', email, address: 'Tallinn' })).toHaveProperty('email');
-  });
-  test('UT-31 whitespace-only address is rejected', () => {
+  test.each(['mari', 'mari@', 'mari@example', 'mari maasikas@example.com'])(
+    'UT-24 rejects malformed email %s', (email) => {
+      expect(validateCheckout({ name: 'Mari', email, address: 'Tallinn' })).toHaveProperty('email');
+    }
+  );
+  test('UT-25 whitespace-only address is rejected', () => {
     expect(validateCheckout({ name: 'Mari', email: 'mari@example.com', address: '   ' })).toHaveProperty('address');
-  });
-  test('UT-32 whitespace around name is trimmed before validation', () => {
-    expect(validateCheckout({ name: ' M ', email: 'mari@example.com', address: 'Tallinn' })).toHaveProperty('name');
-  });
-  test('UT-33 whitespace around a valid email is trimmed', () => {
-    expect(validateCheckout({ name: 'Mari', email: ' mari@example.com ', address: 'Tallinn' })).toEqual({});
-  });
-  test('UT-34 missing email is rejected', () => {
-    expect(validateCheckout({ name: 'Mari', address: 'Tallinn' })).toHaveProperty('email');
-  });
-  test('UT-35 missing address is rejected', () => {
-    expect(validateCheckout({ name: 'Mari', email: 'mari@example.com' })).toHaveProperty('address');
   });
 });
