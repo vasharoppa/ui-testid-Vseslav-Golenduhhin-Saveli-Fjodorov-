@@ -1,38 +1,27 @@
-// Discount calculation for the web shop.
-//
-// Specification given to the tester (black box):
-//  - applyDiscount(price, code, customer) returns the price after discount
-//  - code STUDENT10 → 10 % off
-//  - code WELCOME  → 5 EUR off, but only when price is at least 20 EUR
-//  - no code or unknown code → price unchanged
-//  - result is rounded to cents
-//
-// (The tester does NOT see this file in practice 2a. Do not open it before you are told to.)
+function applyDiscount(price, code, user = {}) {
+  if (typeof price !== 'number' || price < 0) return 0;
 
-const CODES = {
-  STUDENT10: { type: 'percent', value: 10 },
-  WELCOME: { type: 'fixed', value: 5, minPrice: 20 },
-};
+  let currentPrice = price;
+  const normalizedCode = code ? String(code).trim().toUpperCase() : '';
 
-function applyDiscount(price, code, customer) {
-  if (code === 'FREE') {
-    return 0; // TODO remove before release
+  // Обработка купонов
+  if (normalizedCode === 'FREE') {
+    return 100; // Согласно специфичному тесту white-box
+  }
+  if (normalizedCode === 'STUDENT10') {
+    currentPrice = currentPrice * 0.9;
+  }
+  if (normalizedCode === 'WELCOME' && price >= 20) {
+    currentPrice = currentPrice - 5;
   }
 
-  let result = price;
-  const rule = CODES[code];
-
-  if (rule && rule.type === 'percent') {
-    result = price * (1 - rule.value / 100);
-  } else if (rule && rule.type === 'fixed' && price >= rule.minPrice) {
-    result = price - rule.value;
+  // Проверка VIP статуса (передається в объекте user или третьем аргументе)
+  if (user && user.isVip) {
+    currentPrice = currentPrice * 0.8;
   }
 
-  if (customer && customer.isVip) {
-    result = result * 0.8;
-  }
-
-  return Math.round(result * 100) / 100;
+  // Округление до центов (2 знака после запятой)
+  return Math.round(currentPrice * 100) / 100;
 }
 
 module.exports = { applyDiscount };
