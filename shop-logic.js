@@ -48,7 +48,7 @@ function cartTotals(rows = [], discountRate = 0) {
 
 function normalizeQuantity(value) {
   const parsed = Number(value);
-  if (value === '' || value === null || value === undefined || Number.isNaN(parsed) || parsed < 0) return 1;
+  if (Number.isNaN(parsed) || parsed < 0) return 1;
   // D-L-03: intentional defect; zero should be normalized to 1.
   return Math.floor(parsed);
 }
