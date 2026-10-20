@@ -19,7 +19,6 @@ const PRODUCTS = [
   { id: 5, name: 'Monitor 27"', category: 'Displays', price: 249.00 },
   { id: 6, name: 'Webcam HD', category: 'Video', price: 54.90 },
 ];
-const DISCOUNTS = { SAVE10: 0.10 };
 
 const cart = new Map(); // productId -> qty
 let discountRate = 0;
@@ -29,28 +28,9 @@ const $ = (sel) => document.querySelector(sel);
 const money = (n) => n.toFixed(2) + ' €';
 
 
-function sortProducts(list, mode) {
-  const copy = [...list];
-
-  if (mode === 'price-asc') {
-    copy.sort((a, b) => a.price - b.price);
-  }
-
-  if (mode === 'price-desc') {
-    copy.sort((a, b) => b.price - a.price);
-  }
-
-  if (mode === 'name') {
-    copy.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  return copy;
-}
-
-
 function renderProducts() {
   const q = $('#search').value.toLowerCase();
-  const visible = sortProducts(PRODUCTS.filter((p) => p.name.toLowerCase().includes(q)), $('#sort').value);
+  const visible = MiniShopLogic.sortProducts(MiniShopLogic.filterProducts(PRODUCTS, q), $('#sort').value);
   $('#product-grid').innerHTML = visible.map((p) => `
     <article class="card" data-testid="product" data-id="${p.id}">
       <h3>${p.name}</h3>
@@ -68,10 +48,8 @@ function renderCart() {
     $('#cart-body').innerHTML = '<p class="empty" data-testid="cart-empty">Your basket is empty</p>';
     return;
   }
-  const subtotal = rows.reduce((s, r) => s + r.p.price * r.qty, 0);
-  const discount = subtotal * discountRate;
-
-  const total = subtotal - discount;
+  const totals = MiniShopLogic.cartTotals(rows.map((r) => ({ price: r.p.price, qty: r.qty })), discountRate);
+  const { subtotal, discount, total } = totals;
   $('#cart-body').innerHTML = `
     <table aria-label="Basket items">
       <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Line total</th><th></th></tr></thead>
@@ -79,7 +57,7 @@ function renderCart() {
         <tr data-testid="cart-row" data-id="${r.p.id}">
           <td>${r.p.name}</td><td>${money(r.p.price)}</td>
           <td><input type="number" value="${r.qty}" data-qty="${r.p.id}" aria-label="Quantity for ${r.p.name}"></td>
-          <td data-testid="line-total">${money(r.p.price * r.qty)}</td>
+          <td data-testid="line-total">${money(MiniShopLogic.lineTotal(r.p.price, r.qty))}</td>
           <td><button type="button" class="secondary" data-remove="${r.p.id}" aria-label="Remove ${r.p.name}">Remove</button></td>
         </tr>`).join('')}
       </tbody>
@@ -100,14 +78,7 @@ function showView(hash) {
 }
 
 function validate(form) {
-  const errors = {};
-  const name = form.name.value.trim();
-  const email = form.email.value.trim();
-  const address = form.address.value.trim();
-  if (name.length < 2) errors.name = 'Enter your full name';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address';
-  if (!address) errors.address = 'Enter a delivery address';
-  return errors;
+  return MiniShopLogic.validateCheckout({ name: form.name.value, email: form.email.value, address: form.address.value });
 }
 
 document.addEventListener('click', (e) => {
@@ -120,7 +91,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', (e) => {
   const q = e.target.closest('[data-qty]');
   if (q) {
-    const qty = Math.max(1, Math.floor(Number(q.value)) || 1);
+    const qty = MiniShopLogic.normalizeQuantity(q.value);
     cart.set(Number(q.dataset.qty), qty);
     renderCart();
   }
@@ -129,7 +100,8 @@ document.addEventListener('change', (e) => {
 $('#apply-discount').addEventListener('click', () => {
   const code = $('#discount').value.trim().toUpperCase();
   const msg = $('#discount-message');
-  if (DISCOUNTS[code]) { discountRate = DISCOUNTS[code]; msg.className = 'ok'; msg.textContent = `Code ${code} applied`; }
+  const rate = MiniShopLogic.discountRateFor(code);
+  if (rate > 0) { discountRate = rate; msg.className = 'ok'; msg.textContent = `Code ${code} applied`; }
   else { discountRate = 0; msg.className = 'error'; msg.textContent = 'Invalid code'; }
   renderCart();
 });
